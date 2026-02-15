@@ -40,17 +40,11 @@ export default function ResultPage() {
 
   const answers = result.answers || [];
 
-  const correct = answers.filter(
-    (a) => a.selectedOption && a.isCorrect
-  ).length;
+const attempted = answers.filter(a => a.selectedOption).length;
 
-  const wrong = answers.filter(
-    (a) => a.selectedOption && !a.isCorrect
-  ).length;
-
-  const unanswered = answers.filter(
-    (a) => !a.selectedOption
-  ).length;
+const correct = result.score;
+const wrong = attempted - correct;
+const unanswered = result.totalQuestions - attempted;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center text-white fade-in">
