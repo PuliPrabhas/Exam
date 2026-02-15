@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,8 @@ export default function ResultPage() {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
-    // ✅ Read id safely from window (client-only)
+    if (typeof window === "undefined") return;
+
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id");
 
@@ -21,8 +22,8 @@ export default function ResultPage() {
         const res = await fetch(`/api/test/result?id=${id}`);
         const data = await res.json();
         setResult(data);
-      } catch (err) {
-        console.error("Failed to fetch result", err);
+      } catch (error) {
+        console.error("Error fetching result:", error);
       }
     };
 
@@ -37,7 +38,6 @@ export default function ResultPage() {
     );
   }
 
-  // ✅ Safe calculation (prevents crash if answers missing)
   const answers = result.answers || [];
 
   const correct = answers.filter(
@@ -53,7 +53,7 @@ export default function ResultPage() {
   ).length;
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center fade-in text-white">
+    <div className="min-h-screen flex flex-col items-center justify-center text-white fade-in">
 
       <h1 className="text-4xl font-bold mb-8">
         Exam Result
