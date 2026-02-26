@@ -1,16 +1,34 @@
 import connectDB from "@/lib/mongodb";
 import Question from "@/models/Question";
+import Test from "@/models/Test";
 import TestAttempt from "@/models/TestAttempt";
 import { NextResponse } from "next/server";
-
-const TEST_ID = "6990bc10ebe64ed8779d9a71";
 
 export async function POST(req) {
   try {
     await connectDB();
 
     const { studentId, answers } = await req.json();
-    const questions = await Question.find({ testId: TEST_ID });
+
+    const now = new Date();
+
+    // ✅ dynamic active test
+    const activeTest = await Test.findOne({
+      startTime: { $lte: now },
+      endTime: { $gte: now },
+      isActive: true,
+    });
+
+    if (!activeTest) {
+      return NextResponse.json(
+        { error: "No active test" },
+        { status: 400 }
+      );
+    }
+
+    const questions = await Question.find({
+      testId: activeTest._id,
+    });
 
     let score = 0;
     let correct = 0;
@@ -21,6 +39,8 @@ export async function POST(req) {
       const question = questions.find(
         (q) => q._id.toString() === ans.questionId
       );
+
+      if (!question) return;
 
       if (!ans.selectedOption) {
         unanswered++;
@@ -34,19 +54,15 @@ export async function POST(req) {
 
     const attempt = await TestAttempt.create({
       studentId,
-      testId: TEST_ID,
+      testId: activeTest._id,
       answers,
       score,
       totalQuestions: questions.length,
     });
 
-    const savedAttempt = await attempt.save();
-
-return NextResponse.json({
-  attemptId: savedAttempt._id,   // 🔥 VERY IMPORTANT
-});
-
-
+    return NextResponse.json({
+      attemptId: attempt._id,
+    });
   } catch (error) {
     console.log("Submission Error:", error);
     return NextResponse.json(
@@ -55,3 +71,4 @@ return NextResponse.json({
     );
   }
 }
+router.push(`/result?score=${score}&total=${total}`);

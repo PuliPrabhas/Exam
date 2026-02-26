@@ -1,12 +1,12 @@
-import connectDB from "@/lib/mongodb";
-import TestAttempt from "@/models/TestAttempt";
 import { NextResponse } from "next/server";
+import dbConnect from "@lib/mongodb";
+import Attempt from "@/models/TestAttempt";
 
 export async function GET() {
-  try {
-    await connectDB();
+  await dbConnect();
 
-    const attempts = await TestAttempt.find();
+  try {
+    const attempts = await Attempt.find({}).lean();
 
     const totalAttempts = attempts.length;
 
@@ -15,34 +15,50 @@ export async function GET() {
         totalAttempts: 0,
         averageScore: 0,
         highestScore: 0,
-        lowestScore: 0,
         passPercentage: 0,
+        topScorer: null,
+        uniqueStudents: 0,
       });
     }
 
-    const scores = attempts.map(a => a.score);
+    // ✅ average score
+    const totalPercent = attempts.reduce(
+      (sum, a) => sum + (a.percent || 0),
+      0
+    );
+    const averageScore = Math.round(totalPercent / totalAttempts);
 
-    const totalScore = scores.reduce((sum, s) => sum + s, 0);
+    // ✅ highest scorer
+    const highestAttempt = attempts.reduce((max, curr) =>
+      (curr.percent || 0) > (max.percent || 0) ? curr : max
+    );
 
-    const averageScore = (totalScore / totalAttempts).toFixed(2);
+    // ✅ pass percentage (>=40%)
+    const passCount = attempts.filter(
+      (a) => (a.percent || 0) >= 40
+    ).length;
 
-    const highestScore = Math.max(...scores);
-    const lowestScore = Math.min(...scores);
+    const passPercentage = Math.round(
+      (passCount / totalAttempts) * 100
+    );
 
-    const passed = attempts.filter(a => a.score >= 12).length; // 40% of 30 = 12
-    const passPercentage = ((passed / totalAttempts) * 100).toFixed(2);
+    // ✅ unique students
+    const uniqueStudents = new Set(
+      attempts.map((a) => a.studentId)
+    ).size;
 
     return NextResponse.json({
       totalAttempts,
       averageScore,
-      highestScore,
-      lowestScore,
+      highestScore: highestAttempt.percent || 0,
       passPercentage,
+      topScorer: highestAttempt.studentName || "Unknown",
+      uniqueStudents,
     });
-
-  } catch (error) {
+  } catch (err) {
+    console.error("Analytics error:", err);
     return NextResponse.json(
-      { error: error.message },
+      { error: "Failed to load analytics" },
       { status: 500 }
     );
   }

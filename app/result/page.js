@@ -3,83 +3,100 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
 export default function ResultPage() {
   const router = useRouter();
   const [result, setResult] = useState(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    const stored = sessionStorage.getItem("examResult");
 
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get("id");
+    if (!stored) {
+      router.push("/");
+      return;
+    }
 
-    if (!id) return;
-
-    const fetchResult = async () => {
-      try {
-        const res = await fetch(`/api/test/result?id=${id}`);
-        const data = await res.json();
-        setResult(data);
-      } catch (error) {
-        console.error("Error fetching result:", error);
-      }
-    };
-
-    fetchResult();
-  }, []);
+    try {
+      setResult(JSON.parse(stored));
+    } catch {
+      router.push("/");
+    }
+  }, [router]);
 
   if (!result) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-white">
-        Loading result...
+      <div className="min-h-screen flex items-center justify-center bg-[#070b14] text-white">
+        Loading results...
       </div>
     );
   }
 
-  const answers = result.answers || [];
-
-const attempted = answers.filter(a => a.selectedOption).length;
-
-const correct = result.score;
-const wrong = attempted - correct;
-const unanswered = result.totalQuestions - attempted;
+  const {
+    total,
+    correct,
+    wrong,
+    attempted,
+    locked,
+    percent,
+  } = result;
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center text-white fade-in">
+    <div className="min-h-screen flex items-center justify-center bg-[#070b14] text-white">
+      <div className="bg-gradient-to-br from-[#0f172a] to-[#020617]
+                      border border-white/10
+                      rounded-3xl
+                      p-10
+                      shadow-[0_20px_60px_rgba(0,0,0,0.6)]
+                      max-w-xl w-full">
 
-      <h1 className="text-4xl font-bold mb-8">
-        Exam Result
-      </h1>
+        <h1 className="text-3xl font-semibold mb-8 text-center">
+          Exam Result
+        </h1>
 
-      <div className="glass-card p-8 w-96 text-lg space-y-4 rounded-xl">
+        {/* Score */}
+        <div className="grid grid-cols-2 gap-4 mb-8">
 
-        <p className="text-2xl font-bold">
-          Score: {result.score} / {result.totalQuestions}
-        </p>
+          <Stat label="Total Questions" value={total} />
+          <Stat label="Attempted" value={attempted} />
+          <Stat label="Correct" value={correct} green />
+          <Stat label="Wrong" value={wrong} red />
+          <Stat label="Locked" value={locked} />
+          <Stat label="Percentage" value={`${percent}%`} yellow />
 
-        <p className="text-green-400">
-          ✔ Correct: {correct}
-        </p>
+        </div>
 
-        <p className="text-red-400">
-          ✘ Wrong: {wrong}
-        </p>
+        {/* Big score */}
+        <div className="text-center mb-8">
+          <p className="text-gray-400 mb-2">Final Score</p>
+          <p className="text-5xl font-bold text-emerald-400">
+            {correct} / {total}
+          </p>
+        </div>
 
-        <p className="text-gray-300">
-          • Unanswered: {unanswered}
-        </p>
-
+        <button
+          onClick={() => router.push("/")}
+          className="w-full bg-blue-600 hover:bg-blue-500
+                     transition-all duration-300
+                     px-6 py-3 rounded-xl font-semibold"
+        >
+          Go Home
+        </button>
       </div>
+    </div>
+  );
+}
 
-      <button
-        onClick={() => router.push("/dashboard")}
-        className="primary-btn mt-6 px-6 py-2 text-white"
-      >
-        Back to Dashboard
-      </button>
+/* ================= SMALL COMPONENT ================= */
 
+function Stat({ label, value, green, red, yellow }) {
+  let color = "text-white";
+  if (green) color = "text-emerald-400";
+  if (red) color = "text-red-400";
+  if (yellow) color = "text-yellow-400";
+
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+      <p className="text-xs text-gray-400 mb-1">{label}</p>
+      <p className={`text-xl font-semibold ${color}`}>{value}</p>
     </div>
   );
 }
