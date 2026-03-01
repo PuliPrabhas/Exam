@@ -1,51 +1,43 @@
 import { NextResponse } from "next/server";
-import dbConnect from "@lib/mongodb";
+import dbConnect from "@/lib/mongodb";
 import Test from "@/models/Test";
-import TestAttempt from "@/models/TestAttempt";
-import jwt from "jsonwebtoken";
 
-export async function GET(req) {
+export async function GET() {
   await dbConnect();
 
   try {
-    const token = req.headers.get("authorization")?.split(" ")[1];
-    if (!token) return NextResponse.json({ test: null });
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
-
     const now = new Date();
-    console.log("🕒 SERVER TIME:", now);
 
-    const activeTest = await Test.findOne({
-      isActive: true,
+    // ✅ find currently active test
+    const test = await Test.findOne({
+      active: true,
       startTime: { $lte: now },
       endTime: { $gte: now },
-    });
+    }).lean();
 
-    if (!activeTest) {
-      return NextResponse.json({ test: null });
-    }
-
-    // 🚨 prevent retake
-    const existingAttempt = await TestAttempt.findOne({
-      studentId: userId,
-      testId: activeTest._id,
-    });
-
-    if (existingAttempt) {
+    // ✅ no active test
+    if (!test) {
       return NextResponse.json({
-        test: null,
-        message: "already_attempted",
+        success: true,
+        active: null,
       });
     }
 
+    // ✅ normalize id
+    const normalized = {
+      ...test,
+      _id: test._id.toString(),
+    };
+
     return NextResponse.json({
-      test: activeTest,
-      testId: activeTest._id,
+      success: true,
+      active: normalized,
     });
   } catch (err) {
-    console.error("ACTIVE TEST ERROR:", err);
-    return NextResponse.json({ test: null });
+    console.error("Active test fetch error:", err);
+    return NextResponse.json(
+      { success: false, message: "Failed to fetch active test" },
+      { status: 500 }
+    );
   }
 }

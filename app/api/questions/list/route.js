@@ -20,9 +20,17 @@ export async function GET() {
   } catch (err) {
     console.error("QUESTIONS FETCH ERROR:", err);
 
+
     return NextResponse.json(
       { success: false, questions: [] },
       { status: 500 }
     );
   }
+  if (!activeTest) {
+  return NextResponse.json({
+    success: true,
+    questions: [],
+    reason: "no_active_test",
+  });
+}
 }

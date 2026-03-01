@@ -1,6 +1,8 @@
+// app/api/admin/questions/upload/route.js
 import { NextResponse } from "next/server";
 import dbConnect from "@lib/mongodb";
 import Question from "@/models/Question";
+import TestAttempt from "@/models/TestAttempt";
 
 export async function POST(req) {
   await dbConnect();
@@ -8,30 +10,20 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const { questions } = body;
-
-    if (!Array.isArray(questions) || questions.length === 0) {
-      return NextResponse.json(
-        { success: false, message: "No questions provided" },
-        { status: 400 }
-      );
+    if (!Array.isArray(questions) || !questions.length) {
+      return NextResponse.json({ success: false, message: "No questions provided" }, { status: 400 });
     }
 
-    // 🔥 REPLACE MODE (very important)
+    // Replace questions atomically
     await Question.deleteMany({});
-    console.log("🧹 Old questions deleted");
-
     await Question.insertMany(questions);
-    console.log("✅ New questions inserted:", questions.length);
 
-    return NextResponse.json({
-      success: true,
-      inserted: questions.length,
-    });
+    // Reset attempts (all users) - intentional behavior described by you
+    await TestAttempt.deleteMany({});
+
+    return NextResponse.json({ success: true, inserted: questions.length, attemptsReset: true });
   } catch (err) {
     console.error("Upload error:", err);
-    return NextResponse.json(
-      { success: false, message: "Upload failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: "Upload failed" }, { status: 500 });
   }
 }

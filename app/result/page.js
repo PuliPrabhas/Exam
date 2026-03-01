@@ -1,102 +1,110 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function ResultPage() {
-  const router = useRouter();
-  const [result, setResult] = useState(null);
+  const [attempt, setAttempt] = useState(null);
+  const [loading, setLoading] = useState(true);
 
+  /* ================= LOAD RESULT ================= */
   useEffect(() => {
-    const stored = sessionStorage.getItem("examResult");
-
-    if (!stored) {
-      router.push("/");
-      return;
-    }
-
     try {
-      setResult(JSON.parse(stored));
-    } catch {
-      router.push("/");
-    }
-  }, [router]);
+      const raw = sessionStorage.getItem("examAttempt");
 
-  if (!result) {
+      if (!raw) {
+        setAttempt(null);
+        setLoading(false);
+        return;
+      }
+
+      const parsed = JSON.parse(raw);
+
+      // ✅ defensive normalization
+      const normalized = {
+        studentName: parsed.studentName ?? "Unknown",
+        total: Number(parsed.total ?? 0),
+        correct: Number(parsed.correct ?? 0),
+        wrong: Number(parsed.wrong ?? 0),
+        attempted: Number(parsed.attempted ?? 0),
+        percent: Number(parsed.percent ?? 0),
+      };
+
+      setAttempt(normalized);
+    } catch (err) {
+      console.error("Result parse error:", err);
+      setAttempt(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /* ================= LOADING STATE ================= */
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#070b14] text-white">
-        Loading results...
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+        Loading result...
       </div>
     );
   }
 
-  const {
-    total,
-    correct,
-    wrong,
-    attempted,
-    locked,
-    percent,
-  } = result;
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-[#070b14] text-white">
-      <div className="bg-gradient-to-br from-[#0f172a] to-[#020617]
-                      border border-white/10
-                      rounded-3xl
-                      p-10
-                      shadow-[0_20px_60px_rgba(0,0,0,0.6)]
-                      max-w-xl w-full">
-
-        <h1 className="text-3xl font-semibold mb-8 text-center">
-          Exam Result
-        </h1>
-
-        {/* Score */}
-        <div className="grid grid-cols-2 gap-4 mb-8">
-
-          <Stat label="Total Questions" value={total} />
-          <Stat label="Attempted" value={attempted} />
-          <Stat label="Correct" value={correct} green />
-          <Stat label="Wrong" value={wrong} red />
-          <Stat label="Locked" value={locked} />
-          <Stat label="Percentage" value={`${percent}%`} yellow />
-
+  /* ================= NO RESULT ================= */
+  if (!attempt) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black text-white p-8">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-2">
+            No result found
+          </h2>
+          <p className="text-gray-400">
+            Please complete the test first.
+          </p>
         </div>
+      </div>
+    );
+  }
 
-        {/* Big score */}
-        <div className="text-center mb-8">
-          <p className="text-gray-400 mb-2">Final Score</p>
-          <p className="text-5xl font-bold text-emerald-400">
-            {correct} / {total}
+  /* ================= UI ================= */
+  return (
+    <div className="min-h-screen bg-[#070b14] text-white p-8">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6">Exam Result</h1>
+
+        {/* Student */}
+        <div className="bg-gray-900 p-6 rounded-xl mb-6">
+          <p className="text-gray-400 text-sm">Student</p>
+          <p className="text-xl font-semibold">
+            {attempt.studentName}
           </p>
         </div>
 
-        <button
-          onClick={() => router.push("/")}
-          className="w-full bg-blue-600 hover:bg-blue-500
-                     transition-all duration-300
-                     px-6 py-3 rounded-xl font-semibold"
-        >
-          Go Home
-        </button>
+        {/* Score Highlight */}
+        <div className="bg-gradient-to-r from-emerald-600 to-green-500 p-6 rounded-xl mb-6 text-center">
+          <p className="text-sm text-white/80 mb-1">
+            Final Score
+          </p>
+          <p className="text-4xl font-bold">
+            {attempt.percent}%
+          </p>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Stat label="Total" value={attempt.total} />
+          <Stat label="Correct" value={attempt.correct} />
+          <Stat label="Wrong" value={attempt.wrong} />
+          <Stat label="Attempted" value={attempt.attempted} />
+        </div>
       </div>
     </div>
   );
 }
 
-/* ================= SMALL COMPONENT ================= */
-
-function Stat({ label, value, green, red, yellow }) {
-  let color = "text-white";
-  if (green) color = "text-emerald-400";
-  if (red) color = "text-red-400";
-  if (yellow) color = "text-yellow-400";
-
+/* ================= STAT CARD ================= */
+function Stat({ label, value }) {
   return (
-    <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className={`text-xl font-semibold ${color}`}>{value}</p>
+    <div className="bg-gray-900 p-4 rounded-lg">
+      <p className="text-gray-400 text-sm">{label}</p>
+      <p className="text-2xl font-bold">{value}</p>
     </div>
   );
 }
