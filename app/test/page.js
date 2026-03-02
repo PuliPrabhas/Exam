@@ -31,11 +31,14 @@ function formatTime(sec) {
   return `${m}:${s}`;
 }
 
+/* ================= COMPONENT ================= */
 export default function TestPage() {
   const router = useRouter();
 
+  /* ================= STATE ================= */
   const [questions, setQuestions] = useState([]);
   const questionsRef = useRef([]);
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [globalTime, setGlobalTime] = useState(1800);
   const [loading, setLoading] = useState(true);
@@ -48,16 +51,20 @@ export default function TestPage() {
   const [studentName, setStudentName] = useState("");
   const [activeTestInfo, setActiveTestInfo] = useState(null);
 
+  /* ================= REFS ================= */
   const submittedRef = useRef(false);
   const globalTimerRef = useRef(null);
   const questionTimerRef = useRef(null);
   const activeQuestionRef = useRef(null);
   const studentNameRef = useRef("");
+  const storageKeyRef = useRef(null);
 
+  /* ================= KEEP SNAPSHOT ================= */
   useEffect(() => {
     questionsRef.current = questions;
   }, [questions]);
 
+  /* ================= INIT ================= */
   useEffect(() => {
     const init = async () => {
       try {
@@ -74,6 +81,7 @@ export default function TestPage() {
         setStudentName(name);
         studentNameRef.current = name;
 
+        // check attempt
         const res = await fetch("/api/tests/attempt-status", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -88,6 +96,24 @@ export default function TestPage() {
 
         setActiveTestInfo(data.activeTest);
 
+        // dynamic storage key (per student + test)
+        const dynamicKey = `smart_exam_${sid}_${data.activeTest._id}`;
+        storageKeyRef.current = dynamicKey;
+
+        // restore if exists
+        const saved = sessionStorage.getItem(dynamicKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setQuestions(parsed.questions || []);
+          questionsRef.current = parsed.questions || [];
+          setCurrentIndex(parsed.currentIndex || 0);
+          setGlobalTime(parsed.globalTime || 1800);
+          setTabSwitches(parsed.tabSwitches || 0);
+          setLoading(false);
+          return;
+        }
+
+        // fresh load
         const qres = await fetch(
           `/api/questions/list?testId=${data.activeTest._id}`
         );
@@ -111,6 +137,7 @@ export default function TestPage() {
           setGlobalTime(Number(data.activeTest.duration) * 60);
         }
       } catch (e) {
+        console.error("Init error:", e);
         setNoTest(true);
       } finally {
         setLoading(false);
@@ -120,6 +147,24 @@ export default function TestPage() {
     init();
   }, [router]);
 
+  /* ================= PERSIST STATE ================= */
+  useEffect(() => {
+    if (!storageKeyRef.current || !questions.length) return;
+
+    const examState = {
+      questions,
+      currentIndex,
+      globalTime,
+      tabSwitches,
+    };
+
+    sessionStorage.setItem(
+      storageKeyRef.current,
+      JSON.stringify(examState)
+    );
+  }, [questions, currentIndex, globalTime, tabSwitches]);
+
+  /* ================= SAFE SUBMIT ================= */
   const safeSubmit = async (reason = "manual") => {
     if (submittedRef.current) return;
     submittedRef.current = true;
@@ -140,7 +185,7 @@ export default function TestPage() {
 
     const payload = {
       studentId,
-      studentName: studentNameRef.current || studentName || "Student",
+      studentName: studentNameRef.current || "Student",
       testId: activeTestInfo?._id,
       total,
       correct,
@@ -152,7 +197,13 @@ export default function TestPage() {
       createdAt: new Date().toISOString(),
     };
 
+    // ⭐ CRITICAL for ResultPage
     sessionStorage.setItem("examAttempt", JSON.stringify(payload));
+
+    // cleanup resume state ONLY for this user/test
+    if (storageKeyRef.current) {
+      sessionStorage.removeItem(storageKeyRef.current);
+    }
 
     try {
       await fetch("/api/test/submit", {
@@ -160,11 +211,14 @@ export default function TestPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-    } catch {}
+    } catch (err) {
+      console.error("Submit failed:", err);
+    }
 
     router.replace("/result");
   };
 
+  /* ================= GLOBAL TIMER ================= */
   useEffect(() => {
     if (loading || noTest) return;
 
@@ -181,6 +235,7 @@ export default function TestPage() {
     return () => clearInterval(globalTimerRef.current);
   }, [loading, noTest]);
 
+  /* ================= PER QUESTION TIMER ================= */
   useEffect(() => {
     const q = questions[currentIndex];
     if (!q) return;
@@ -206,6 +261,7 @@ export default function TestPage() {
     return () => clearInterval(questionTimerRef.current);
   }, [currentIndex, questions.length]);
 
+  /* ================= PROCTOR ================= */
   useEffect(() => {
     const prevent = (e) => e.preventDefault();
 
@@ -243,6 +299,7 @@ export default function TestPage() {
     };
   }, []);
 
+  /* ================= SELECT ================= */
   const selectOption = (opt) => {
     setQuestions((prev) => {
       const copy = [...prev];
@@ -253,14 +310,17 @@ export default function TestPage() {
     });
   };
 
+  /* ================= DERIVED ================= */
   const answered = useMemo(
     () => questions.filter((q) => q.selectedOption).length,
     [questions]
   );
+
   const locked = useMemo(
     () => questions.filter((q) => q.locked).length,
     [questions]
   );
+
   const remaining = useMemo(
     () => questions.filter((q) => !q.selectedOption && !q.locked).length,
     [questions]
@@ -268,6 +328,7 @@ export default function TestPage() {
 
   const q = questions[currentIndex];
 
+  /* ================= GUARDS ================= */
   if (loading)
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
@@ -282,6 +343,7 @@ export default function TestPage() {
       </div>
     );
 
+  /* ================= UI ================= */
   return (
     <div className="min-h-screen bg-[#070b14] text-white">
       {warning && (
@@ -297,6 +359,7 @@ export default function TestPage() {
       )}
 
       <div className="max-w-7xl mx-auto p-6 grid lg:grid-cols-[1fr_340px] gap-8">
+        {/* LEFT */}
         <div className="space-y-8">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-semibold">
@@ -382,7 +445,7 @@ export default function TestPage() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setCurrentIndex((i) => i + 1)}
-                        className="min-w-[120px] px-6 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 transition-all duration-200 font-semibold shadow-lg cursor-pointer"
+                        className="min-w-[120px] px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 transition-all duration-200 font-semibold shadow-lg cursor-pointer"
                       >
                         Next
                       </motion.button>
@@ -394,6 +457,7 @@ export default function TestPage() {
           </AnimatePresence>
         </div>
 
+        {/* RIGHT PALETTE */}
         <div className="lg:sticky lg:top-6 h-fit p-6 rounded-2xl bg-[#020617] border border-white/10 shadow-xl space-y-6">
           <h3 className="font-semibold text-lg">Question Palette</h3>
 
