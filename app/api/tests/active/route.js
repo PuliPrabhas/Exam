@@ -8,14 +8,12 @@ export async function GET() {
   try {
     const now = new Date();
 
-    // ✅ find currently active test
+    // ✅ PRODUCTION SAFE ACTIVE TEST FINDER
     const test = await Test.findOne({
-      active: true,
       startTime: { $lte: now },
       endTime: { $gte: now },
     }).lean();
 
-    // ✅ no active test
     if (!test) {
       return NextResponse.json({
         success: true,
@@ -23,7 +21,6 @@ export async function GET() {
       });
     }
 
-    // ✅ normalize id
     const normalized = {
       ...test,
       _id: test._id.toString(),

@@ -22,4 +22,10 @@ TestSchema.index(
   { unique: true, partialFilterExpression: { active: true } }
 );
 
+// 🧠🔥 AUTO DELETE EXPIRED TESTS (TTL INDEX)
+TestSchema.index(
+  { endTime: 1 },
+  { expireAfterSeconds: 0 }
+);
+
 export default mongoose.models.Test || mongoose.model("Test", TestSchema);

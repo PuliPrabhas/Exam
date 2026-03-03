@@ -1,33 +1,34 @@
-// app/api/admin/tests/[id]/end/route.js
-
 import { NextResponse } from "next/server";
-import dbConnect from "@lib/mongodb";
+import dbConnect from "@/lib/mongodb";
 import Test from "@/models/Test";
 
-export async function POST(req, { params }) {
+export async function POST(req, context) {
   await dbConnect();
 
   try {
-    const { id } = params;
+    // ✅ SAFE PARAM EXTRACTION (CRITICAL FIX)
+    const id = context?.params?.id;
 
     if (!id) {
       return NextResponse.json(
-        { message: "Test id required" },
+        { success: false, message: "Test id required" },
         { status: 400 }
       );
     }
 
+    // ✅ find test
     const test = await Test.findById(id);
 
     if (!test) {
       return NextResponse.json(
-        { message: "Test not found" },
+        { success: false, message: "Test not found" },
         { status: 404 }
       );
     }
 
-    // 🔥 deactivate test
+    // 🔥 HARD END TEST (production safe)
     test.active = false;
+    test.endTime = new Date(); // ← VERY IMPORTANT
     await test.save();
 
     return NextResponse.json({
@@ -38,7 +39,7 @@ export async function POST(req, { params }) {
     console.error("End test error:", err);
 
     return NextResponse.json(
-      { message: "Failed to end test" },
+      { success: false, message: "Failed to end test" },
       { status: 500 }
     );
   }

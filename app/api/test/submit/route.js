@@ -6,7 +6,18 @@ export async function POST(req) {
   await dbConnect();
 
   try {
-    const payload = await req.json();
+    // ===============================
+    // ✅ SAFE JSON PARSE
+    // ===============================
+    let payload;
+    try {
+      payload = await req.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON payload" },
+        { status: 400 }
+      );
+    }
 
     // ===============================
     // ✅ BASIC VALIDATION
@@ -38,21 +49,42 @@ export async function POST(req) {
     }
 
     // ===============================
-    // ✅ NORMALIZE PAYLOAD (safety)
+    // ✅ NORMALIZE ANSWERS (SAFE)
+    // ===============================
+    const normalizedAnswers = Array.isArray(payload.answers)
+      ? payload.answers.map((a) => ({
+          questionId: a?._idStr || a?._id || null,
+          selectedOption: a?.selectedOption ?? null,
+          correctAnswer: a?.correctAnswer ?? null,
+          locked: !!a?.locked,
+        }))
+      : [];
+
+    // ===============================
+    // ✅ CLEAN DOCUMENT
     // ===============================
     const cleanDoc = {
       studentId: payload.studentId,
-      studentName: payload.studentName ?? "Student",
+
+      // 🔥 CRITICAL FIX — NEVER FALL BACK WRONG
+      studentName:
+        typeof payload.studentName === "string" &&
+        payload.studentName.trim().length > 0
+          ? payload.studentName.trim()
+          : "Unknown",
+
       testId: payload.testId,
 
       total: Number(payload.total ?? 0),
       correct: Number(payload.correct ?? 0),
       wrong: Number(payload.wrong ?? 0),
       attempted: Number(payload.attempted ?? 0),
-      locked: Number(payload.locked ?? 0),
       percent: Number(payload.percent ?? 0),
 
-      answers: Array.isArray(payload.answers) ? payload.answers : [],
+      // optional derived locked count
+      locked: normalizedAnswers.filter((a) => a.locked).length,
+
+      answers: normalizedAnswers,
       reason: payload.reason ?? "manual",
 
       createdAt: payload.createdAt
@@ -77,6 +109,18 @@ export async function POST(req) {
     });
   } catch (err) {
     console.error("❌ Submit error:", err);
+
+    // 🔥 ENTERPRISE DUPLICATE PROTECTION
+    if (err.code === 11000) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You have already attempted this test",
+          alreadyAttempted: true,
+        },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json(
       {

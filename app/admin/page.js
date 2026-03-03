@@ -447,31 +447,37 @@ export default function AdminPage() {
       setScheduling(false);
     }
   };
-
-  const handleEndActiveTest = async () => {
+//------end active test-------
+   const handleEndActiveTest = async () => {
     if (!activeTest?._id) {
       alert("No active test to end.");
       return;
     }
+
     if (!confirm("End the active test now?")) return;
 
     try {
-      const res = await fetch(`/api/admin/tests/${activeTest._id}/end`, { method: "POST" });
+      const res = await fetch(
+        `/api/admin/tests/${activeTest._id}/end`,
+        { method: "POST" }
+      );
+
       const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
         console.error("End test failed:", data);
-        alert(data.message || `Failed to end test: ${res.status}`);
-      } else {
-        alert("Active test ended.");
-        await fetchActiveTest();
-        await fetchAnalytics();
-        await fetchLeaderboard();
+        alert(data.message || "Failed to end test");
+        return;
       }
+
+      alert("Active test ended successfully.");
+      await fetchActiveTest();
     } catch (err) {
       console.error("End active test error:", err);
-      alert("Failed to end test. See console.");
+      alert("Failed to end test.");
     }
   };
+
 
   /* ---------------------- filtered list ---------------------- */
   const filtered = (questions ?? []).filter((q) =>
